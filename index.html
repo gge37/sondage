@@ -1,0 +1,45 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Sondage — Identifiant</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <div class="container" role="main">
+    <div class="header">
+      <img src="assets/logo.png" alt="Logo" class="logo" />
+      <div>
+        <h1>Sondage client</h1>
+        <div class="small">Veuillez saisir votre identifiant numérique pour commencer</div>
+      </div>
+    </div>
+
+    <div class="form-row">
+      <label for="identifier">Identifiant numérique</label>
+      <input id="identifier" type="text" inputmode="numeric" pattern="[0-9]*" placeholder="Ex : 12345" />
+    </div>
+
+    <div class="actions">
+      <button id="nextBtn" class="btn btn-primary">Suivant</button>
+    </div>
+  </div>
+
+  <script>
+    document.getElementById('nextBtn').addEventListener('click', () => {
+      const id = document.getElementById('identifier').value.trim();
+      if (!/^\d+$/.test(id)) {
+        alert('Veuillez saisir un identifiant numérique valide.');
+        return;
+      }
+      sessionStorage.setItem('survey_identifier', id);
+      window.location.href = 'survey.html';
+    });
+
+    document.getElementById('identifier').addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') document.getElementById('nextBtn').click();
+    });
+  </script>
+</body>
+</html>
