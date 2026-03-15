@@ -6,6 +6,12 @@
   <title>Sondage — Questions</title>
 
   <link rel="stylesheet" href="style.css" />
+
+  <!-- EmailJS SDK -->
+  <script src="https://cdn.jsdelivr.net/npm/@emailjs/browser@4/dist/email.min.js"></script>
+  <script>
+    emailjs.init("urd5hbfLBzsCqFcbB"); // Public Key
+  </script>
 </head>
 
 <body>
@@ -76,13 +82,6 @@
 
 <script>
 /* ---------------------------
-   CONFIGURATION BREVO
----------------------------- */
-const BREVO_API_KEY = "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";
-const FROM_EMAIL = "frgge@gmx.fr";
-const TO_EMAIL = "37aureliengge@gmx.fr";
-
-/* ---------------------------
    IDENTIFIANT
 ---------------------------- */
 const id = sessionStorage.getItem("survey_identifier");
@@ -119,50 +118,15 @@ document.getElementById("surveyForm").addEventListener("submit", async (e) => {
     return;
   }
 
-  const body =
-`ID: ${payload.identifier}
-Q1: ${payload.q1}
-Q2: ${payload.q2}
-Q3: ${payload.q3}
-Q4: ${payload.q4}
-Q5: ${payload.q5}
-Q6: ${payload.q6}
-Note: ${payload.note}
-
-Commentaire:
-${payload.comment}
-`;
-
-  const emailData = {
-    sender: { email: FROM_EMAIL },
-    to: [{ email: TO_EMAIL }],
-    subject: "réponse sondage",
-    textContent: body
-  };
-
   try {
-    const response = await fetch("https://api.brevo.com/v3/smtp/email", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "api-key": BREVO_API_KEY
-      },
-      body: JSON.stringify(emailData)
-    });
+    await emailjs.send("service_201krzu", "template_52r0nmo", payload);
 
-    const result = await response.json();
-    console.log(result);
-
-    if (response.ok) {
-      alert("Merci ! Vos réponses ont été envoyées.");
-      sessionStorage.removeItem("survey_identifier");
-      location.href = "index.html";
-    } else {
-      throw new Error("Brevo error");
-    }
+    alert("Merci ! Vos réponses ont été envoyées.");
+    sessionStorage.removeItem("survey_identifier");
+    location.href = "index.html";
 
   } catch (err) {
-    alert("Erreur d’envoi. Vérifiez votre connexion ou votre clé Brevo.");
+    alert("Erreur d’envoi. Vérifiez votre connexion.");
     console.error(err);
   }
 });
