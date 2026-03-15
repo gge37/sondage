@@ -4,15 +4,18 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <title>Sondage — Questions</title>
+
+  <!-- Correction demandée -->
   <link rel="stylesheet" href="style.css" />
 
   <!-- SheetJS pour générer Excel -->
   <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 </head>
+
 <body>
   <div class="container">
     <div class="header">
-      <img src="assets/logo.png" class="logo" />
+      <img src="logo.png" class="logo" />
       <div>
         <h1>Sondage — Vos réponses</h1>
         <div class="small">6 questions rapides, puis un commentaire libre</div>
@@ -22,7 +25,7 @@
     <div id="identifierDisplay" class="small form-row"></div>
 
     <form id="surveyForm">
-      <!-- questions identiques à ta version précédente -->
+
       <div class="question">
         <label>Q1. Lorem ipsum dolor sit amet ?</label>
         <input name="q1" type="text" />
@@ -71,6 +74,7 @@
         <button type="button" id="backBtn" class="btn btn-ghost">Retour</button>
         <button type="submit" class="btn btn-primary">Envoyer</button>
       </div>
+
     </form>
   </div>
 
@@ -94,7 +98,7 @@ document.getElementById("identifierDisplay").textContent = "Identifiant : " + id
 /* ---------------------------
    GÉNÉRATION EXCEL (SheetJS)
 ---------------------------- */
-function generateExcelBase64(payload) {
+function generateExcelBlob(payload) {
   const data = [
     ["Identifiant","Q1","Q2","Q3","Q4","Q5","Q6","Note","Commentaire"],
     [
@@ -115,28 +119,32 @@ function generateExcelBase64(payload) {
   XLSX.utils.book_append_sheet(wb, ws, "Sondage");
 
   const binary = XLSX.write(wb, { bookType: "xlsx", type: "binary" });
-  let bytes = new Uint8Array(binary.length);
-  for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
-  return btoa(String.fromCharCode(...bytes));
+
+  const buffer = new ArrayBuffer(binary.length);
+  const view = new Uint8Array(buffer);
+  for (let i = 0; i < binary.length; i++) {
+    view[i] = binary.charCodeAt(i) & 0xFF;
+  }
+
+  return new Blob([buffer], {
+    type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+  });
 }
 
 /* ---------------------------
    ENVOI VIA WEB3FORMS
 ---------------------------- */
-async function sendViaWeb3Forms(payload, excelBase64) {
-  const filename = "sondage_" + payload.identifier + ".xlsx";
+async function sendViaWeb3Forms(payload, excelBlob) {
 
   const formData = new FormData();
+
   formData.append("access_key", WEB3FORMS_KEY);
   formData.append("subject", "Réponse sondage - ID " + payload.identifier);
   formData.append("email", DEST_EMAIL);
-  formData.append("message", "Réponses du sondage en pièce jointe.");
+  formData.append("message", "Veuillez trouver ci-joint le fichier Excel du sondage.");
 
-  // Pièce jointe Excel en base64
-  formData.append("attachments", new Blob(
-    [excelBase64],
-    { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" }
-  ), filename);
+  // Pièce jointe Excel (IMPORTANT : Web3Forms exige "attachments[]")
+  formData.append("attachments[]", excelBlob, "sondage_" + payload.identifier + ".xlsx");
 
   const response = await fetch("https://api.web3forms.com/submit", {
     method: "POST",
@@ -170,24 +178,15 @@ document.getElementById("surveyForm").addEventListener("submit", async (e) => {
     comment: (fd.get("comment") || "").trim()
   };
 
-  // Validation
   if (payload.comment.length < 2) {
     alert("Commentaire trop court");
     return;
   }
 
-  // Génération Excel
-  let excelBase64;
-  try {
-    excelBase64 = generateExcelBase64(payload);
-  } catch (err) {
-    alert("Erreur génération Excel");
-    return;
-  }
+  const excelBlob = generateExcelBlob(payload);
 
-  // Envoi Web3Forms
   try {
-    const ok = await sendViaWeb3Forms(payload, excelBase64);
+    const ok = await sendViaWeb3Forms(payload, excelBlob);
     if (ok) {
       alert("Merci ! Vos réponses ont été envoyées.");
       sessionStorage.removeItem("survey_identifier");
@@ -196,7 +195,19 @@ document.getElementById("surveyForm").addEventListener("submit", async (e) => {
       throw new Error("Web3Forms error");
     }
   } catch (err) {
-    alert("Échec de l’envoi automatique. Vous pouvez envoyer le fichier manuellement.");
+    alert("Échec de l’envoi automatique. Téléchargement du fichier Excel…");
+
+    const url = URL.createObjectURL(excelBlob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = "sondage_" + payload.identifier + ".xlsx";
+    a.click();
+    URL.revokeObjectURL(url);
+
+    window.location.href =
+      "mailto:" + DEST_EMAIL +
+      "?subject=" + encodeURIComponent("Réponse sondage - ID " + payload.identifier) +
+      "&body=" + encodeURIComponent("Veuillez joindre le fichier Excel téléchargé.");
   }
 });
 </script>
