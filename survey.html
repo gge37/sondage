@@ -6,9 +6,6 @@
   <title>Sondage — Questions</title>
 
   <link rel="stylesheet" href="style.css" />
-
-  <!-- SheetJS pour générer Excel -->
-  <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 </head>
 
 <body>
@@ -23,14 +20,7 @@
 
     <div id="identifierDisplay" class="small form-row"></div>
 
-    <!-- FORMULAIRE FORMARRY (multipart) -->
-    <form id="surveyForm"
-          action="https://formcarry.com/s/c5Ez5CBDJpj"
-          method="POST"
-          enctype="multipart/form-data">
-
-      <input type="hidden" name="_subject" value="Réponse sondage" />
-      <input type="hidden" name="_replyto" value="37aureliengge@gmail.com" />
+    <form id="surveyForm">
 
       <div class="question">
         <label>Q1. Lorem ipsum dolor sit amet ?</label>
@@ -76,9 +66,6 @@
         <textarea name="comment" minlength="2" maxlength="3000"></textarea>
       </div>
 
-      <!-- Champ fichier invisible où l’on injecte l’Excel -->
-      <input type="file" id="excelFile" name="file" style="display:none" />
-
       <div class="actions">
         <button type="button" id="backBtn" class="btn btn-ghost">Retour</button>
         <button type="submit" class="btn btn-primary">Envoyer</button>
@@ -88,6 +75,13 @@
   </div>
 
 <script>
+/* ---------------------------
+   CONFIGURATION BREVO
+---------------------------- */
+const BREVO_API_KEY = "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";
+const FROM_EMAIL = "frgge@gmx.fr";
+const TO_EMAIL = "37aureliengge@gmx.fr";
+
 /* ---------------------------
    IDENTIFIANT
 ---------------------------- */
@@ -99,45 +93,10 @@ if (!id) {
 document.getElementById("identifierDisplay").textContent = "Identifiant : " + id;
 
 /* ---------------------------
-   GÉNÉRATION EXCEL (SheetJS)
----------------------------- */
-function generateExcelBlob(payload) {
-  const data = [
-    ["Identifiant","Q1","Q2","Q3","Q4","Q5","Q6","Note","Commentaire"],
-    [
-      payload.identifier,
-      payload.answers.q1,
-      payload.answers.q2.join("; "),
-      payload.answers.q3,
-      payload.answers.q4,
-      payload.answers.q5,
-      payload.answers.q6,
-      payload.answers.note,
-      payload.comment
-    ]
-  ];
-
-  const wb = XLSX.utils.book_new();
-  const ws = XLSX.utils.aoa_to_sheet(data);
-  XLSX.utils.book_append_sheet(wb, ws, "Sondage");
-
-  const binary = XLSX.write(wb, { bookType: "xlsx", type: "binary" });
-
-  const buffer = new ArrayBuffer(binary.length);
-  const view = new Uint8Array(buffer);
-  for (let i = 0; i < binary.length; i++) {
-    view[i] = binary.charCodeAt(i) & 0xFF;
-  }
-
-  return new Blob([buffer], {
-    type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-  });
-}
-
-/* ---------------------------
    FORMULAIRE
 ---------------------------- */
 document.getElementById("surveyForm").addEventListener("submit", async (e) => {
+  e.preventDefault();
 
   const fd = new FormData(e.target);
 
@@ -145,38 +104,67 @@ document.getElementById("surveyForm").addEventListener("submit", async (e) => {
 
   const payload = {
     identifier: id,
-    answers: {
-      q1: fd.get("q1") || "",
-      q2,
-      q3: fd.get("q3") || "",
-      q4: fd.get("q4") || "",
-      q5: fd.get("q5") || "",
-      q6: fd.get("q6") || "",
-      note: Number(fd.get("note"))
-    },
+    q1: fd.get("q1") || "",
+    q2: q2.join("; "),
+    q3: fd.get("q3") || "",
+    q4: fd.get("q4") || "",
+    q5: fd.get("q5") || "",
+    q6: fd.get("q6") || "",
+    note: fd.get("note") || "",
     comment: (fd.get("comment") || "").trim()
   };
 
   if (payload.comment.length < 2) {
     alert("Commentaire trop court");
-    e.preventDefault();
     return;
   }
 
-  // Génération Excel
-  const excelBlob = generateExcelBlob(payload);
+  const body =
+`ID: ${payload.identifier}
+Q1: ${payload.q1}
+Q2: ${payload.q2}
+Q3: ${payload.q3}
+Q4: ${payload.q4}
+Q5: ${payload.q5}
+Q6: ${payload.q6}
+Note: ${payload.note}
 
-  // Injection dans le champ file
-  const fileInput = document.getElementById("excelFile");
-  const file = new File([excelBlob], "sondage_" + payload.identifier + ".xlsx", {
-    type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-  });
+Commentaire:
+${payload.comment}
+`;
 
-  const dataTransfer = new DataTransfer();
-  dataTransfer.items.add(file);
-  fileInput.files = dataTransfer.files;
+  const emailData = {
+    sender: { email: FROM_EMAIL },
+    to: [{ email: TO_EMAIL }],
+    subject: "réponse sondage",
+    textContent: body
+  };
 
-  // Le formulaire s’envoie automatiquement après injection
+  try {
+    const response = await fetch("https://api.brevo.com/v3/smtp/email", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "api-key": BREVO_API_KEY
+      },
+      body: JSON.stringify(emailData)
+    });
+
+    const result = await response.json();
+    console.log(result);
+
+    if (response.ok) {
+      alert("Merci ! Vos réponses ont été envoyées.");
+      sessionStorage.removeItem("survey_identifier");
+      location.href = "index.html";
+    } else {
+      throw new Error("Brevo error");
+    }
+
+  } catch (err) {
+    alert("Erreur d’envoi. Vérifiez votre connexion ou votre clé Brevo.");
+    console.error(err);
+  }
 });
 </script>
 
