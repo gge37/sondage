@@ -4,16 +4,15 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <title>Sondage — Questions</title>
-  <link rel="stylesheet" href="style.css" />
-  <!-- SheetJS (XLSX) pour générer le fichier Excel côté client -->
+  <link rel="stylesheet" href="styles.css" />
+
+  <!-- SheetJS pour générer Excel -->
   <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
-  <!-- EmailJS SDK -->
-  <script src="https://cdn.jsdelivr.net/npm/emailjs-com@3.2.0/dist/email.min.js"></script>
 </head>
 <body>
-  <div class="container" role="main">
+  <div class="container">
     <div class="header">
-      <img src="assets/logo.png" alt="Logo" class="logo" />
+      <img src="logo.png" class="logo" />
       <div>
         <h1>Sondage — Vos réponses</h1>
         <div class="small">6 questions rapides, puis un commentaire libre</div>
@@ -23,52 +22,49 @@
     <div id="identifierDisplay" class="small form-row"></div>
 
     <form id="surveyForm">
+      <!-- questions identiques à ta version précédente -->
       <div class="question">
         <label>Q1. Lorem ipsum dolor sit amet ?</label>
-        <input name="q1" type="text" placeholder="Votre réponse (texte court)" />
+        <input name="q1" type="text" />
       </div>
 
       <div class="question">
         <label>Q2. Choix multiple — Lorem ipsum ?</label>
-        <div>
-          <label><input type="checkbox" name="q2" value="Option A" /> Option A</label><br/>
-          <label><input type="checkbox" name="q2" value="Option B" /> Option B</label><br/>
-          <label><input type="checkbox" name="q2" value="Option C" /> Option C</label>
-        </div>
+        <label><input type="checkbox" name="q2" value="Option A"> Option A</label><br>
+        <label><input type="checkbox" name="q2" value="Option B"> Option B</label><br>
+        <label><input type="checkbox" name="q2" value="Option C"> Option C</label>
       </div>
 
       <div class="question">
         <label>Q3. Choix unique — Lorem ipsum ?</label>
-        <div>
-          <label><input type="radio" name="q3" value="Oui" /> Oui</label><br/>
-          <label><input type="radio" name="q3" value="Non" /> Non</label><br/>
-          <label><input type="radio" name="q3" value="Peut-être" /> Peut-être</label>
-        </div>
+        <label><input type="radio" name="q3" value="Oui"> Oui</label><br>
+        <label><input type="radio" name="q3" value="Non"> Non</label><br>
+        <label><input type="radio" name="q3" value="Peut-être"> Peut-être</label>
       </div>
 
       <div class="question">
         <label>Q4. Lorem ipsum dolor sit amet ?</label>
-        <input name="q4" type="text" placeholder="Réponse libre" />
+        <input name="q4" type="text" />
       </div>
 
       <div class="question">
         <label>Q5. Lorem ipsum dolor sit amet ?</label>
-        <input name="q5" type="text" placeholder="Réponse libre" />
+        <input name="q5" type="text" />
       </div>
 
       <div class="question">
         <label>Q6. Lorem ipsum dolor sit amet ?</label>
-        <input name="q6" type="text" placeholder="Réponse libre" />
+        <input name="q6" type="text" />
       </div>
 
       <div class="question">
         <label>Note globale 0 à 20</label>
-        <input id="note" name="note" type="number" min="0" max="20" step="1" value="10" />
+        <input name="note" type="number" min="0" max="20" value="10" />
       </div>
 
       <div class="question">
-        <label>Commentaire libre (2 à 3000 caractères)</label>
-        <textarea id="comment" name="comment" minlength="2" maxlength="3000" placeholder="Votre commentaire..."></textarea>
+        <label>Commentaire libre</label>
+        <textarea name="comment" minlength="2" maxlength="3000"></textarea>
       </div>
 
       <div class="actions">
@@ -78,214 +74,132 @@
     </form>
   </div>
 
-  <script>
-    // --- CONFIGUREZ ICI vos identifiants EmailJS ---
-    const EMAILJS_USER_ID = 'YOUR_EMAILJS_USER_ID';     // ex: user_xxx
-    const EMAILJS_SERVICE_ID = 'YOUR_SERVICE_ID';       // ex: service_xxx
-    const EMAILJS_TEMPLATE_ID = 'YOUR_TEMPLATE_ID';     // ex: template_xxx
-    const DEST_EMAIL = 'destinataire@example.com';      // facultatif si template gère le destinataire
+<script>
+/* ---------------------------
+   CONFIGURATION WEB3FORMS
+---------------------------- */
+const WEB3FORMS_KEY = "543cb580-628b-4205-aa9f-c3c3749b7641";
+const DEST_EMAIL = "frgge@gmx.fr";
 
-    // Initialisation EmailJS
-    emailjs.init(EMAILJS_USER_ID);
+/* ---------------------------
+   IDENTIFIANT
+---------------------------- */
+const id = sessionStorage.getItem("survey_identifier");
+if (!id) {
+  alert("Identifiant manquant");
+  location.href = "index.html";
+}
+document.getElementById("identifierDisplay").textContent = "Identifiant : " + id;
 
-    // Récupérer identifiant
-    const id = sessionStorage.getItem('survey_identifier');
-    if (!id) {
-      alert('Identifiant introuvable. Veuillez revenir à la page précédente.');
-      window.location.href = 'index.html';
+/* ---------------------------
+   GÉNÉRATION EXCEL (SheetJS)
+---------------------------- */
+function generateExcelBase64(payload) {
+  const data = [
+    ["Identifiant","Q1","Q2","Q3","Q4","Q5","Q6","Note","Commentaire"],
+    [
+      payload.identifier,
+      payload.answers.q1,
+      payload.answers.q2.join("; "),
+      payload.answers.q3,
+      payload.answers.q4,
+      payload.answers.q5,
+      payload.answers.q6,
+      payload.answers.note,
+      payload.comment
+    ]
+  ];
+
+  const wb = XLSX.utils.book_new();
+  const ws = XLSX.utils.aoa_to_sheet(data);
+  XLSX.utils.book_append_sheet(wb, ws, "Sondage");
+
+  const binary = XLSX.write(wb, { bookType: "xlsx", type: "binary" });
+  let bytes = new Uint8Array(binary.length);
+  for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+  return btoa(String.fromCharCode(...bytes));
+}
+
+/* ---------------------------
+   ENVOI VIA WEB3FORMS
+---------------------------- */
+async function sendViaWeb3Forms(payload, excelBase64) {
+  const filename = "sondage_" + payload.identifier + ".xlsx";
+
+  const formData = new FormData();
+  formData.append("access_key", WEB3FORMS_KEY);
+  formData.append("subject", "Réponse sondage - ID " + payload.identifier);
+  formData.append("email", DEST_EMAIL);
+  formData.append("message", "Réponses du sondage en pièce jointe.");
+
+  // Pièce jointe Excel en base64
+  formData.append("attachments", new Blob(
+    [excelBase64],
+    { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" }
+  ), filename);
+
+  const response = await fetch("https://api.web3forms.com/submit", {
+    method: "POST",
+    body: formData
+  });
+
+  return response.ok;
+}
+
+/* ---------------------------
+   FORMULAIRE
+---------------------------- */
+document.getElementById("surveyForm").addEventListener("submit", async (e) => {
+  e.preventDefault();
+
+  const fd = new FormData(e.target);
+
+  const q2 = [...document.querySelectorAll('input[name="q2"]:checked')].map(x => x.value);
+
+  const payload = {
+    identifier: id,
+    answers: {
+      q1: fd.get("q1") || "",
+      q2,
+      q3: fd.get("q3") || "",
+      q4: fd.get("q4") || "",
+      q5: fd.get("q5") || "",
+      q6: fd.get("q6") || "",
+      note: Number(fd.get("note"))
+    },
+    comment: (fd.get("comment") || "").trim()
+  };
+
+  // Validation
+  if (payload.comment.length < 2) {
+    alert("Commentaire trop court");
+    return;
+  }
+
+  // Génération Excel
+  let excelBase64;
+  try {
+    excelBase64 = generateExcelBase64(payload);
+  } catch (err) {
+    alert("Erreur génération Excel");
+    return;
+  }
+
+  // Envoi Web3Forms
+  try {
+    const ok = await sendViaWeb3Forms(payload, excelBase64);
+    if (ok) {
+      alert("Merci ! Vos réponses ont été envoyées.");
+      sessionStorage.removeItem("survey_identifier");
+      location.href = "index.html";
     } else {
-      document.getElementById('identifierDisplay').textContent = 'Identifiant : ' + id;
+      throw new Error("Web3Forms error");
     }
+  } catch (err) {
+    alert("Échec de l’envoi automatique. Vous pouvez envoyer le fichier manuellement.");
+  }
+});
+</script>
 
-    document.getElementById('backBtn').addEventListener('click', () => {
-      window.location.href = 'index.html';
-    });
-
-    // Utilitaires
-    function workbookToBase64(wb) {
-      const wbout = XLSX.write(wb, { bookType:'xlsx', type:'binary' });
-      // convert binary string to base64
-      const buf = new Uint8Array(wbout.length);
-      for (let i = 0; i < wbout.length; ++i) buf[i] = wbout.charCodeAt(i) & 0xFF;
-      let binary = '';
-      const chunkSize = 0x8000;
-      for (let i = 0; i < buf.length; i += chunkSize) {
-        binary += String.fromCharCode.apply(null, buf.subarray(i, i + chunkSize));
-      }
-      return btoa(binary);
-    }
-
-    // Générer XLSX (SheetJS) : en-têtes + une ligne
-    function generateXlsxBase64(payload) {
-      const ws_data = [
-        ['Identifiant','Q1','Q2','Q3','Q4','Q5','Q6','Note','Commentaire'],
-        [
-          payload.identifier,
-          payload.answers.q1 || '',
-          Array.isArray(payload.answers.q2) ? payload.answers.q2.join('; ') : (payload.answers.q2 || ''),
-          payload.answers.q3 || '',
-          payload.answers.q4 || '',
-          payload.answers.q5 || '',
-          payload.answers.q6 || '',
-          payload.answers.note !== undefined ? String(payload.answers.note) : '',
-          payload.comment || ''
-        ]
-      ];
-      const wb = XLSX.utils.book_new();
-      const ws = XLSX.utils.aoa_to_sheet(ws_data);
-      XLSX.utils.book_append_sheet(wb, ws, 'Sondage');
-      return workbookToBase64(wb); // base64 string
-    }
-
-    // Fallback CSV download (si besoin)
-    function downloadCsv(payload) {
-      function csvEscape(s) {
-        if (s === null || s === undefined) return '';
-        const str = String(s);
-        if (str.includes('"') || str.includes(',') || str.includes('\n') || str.includes('\r')) {
-          return '"' + str.replace(/"/g, '""') + '"';
-        }
-        return str;
-      }
-      const headers = ['Identifiant','Q1','Q2','Q3','Q4','Q5','Q6','Note','Commentaire'];
-      const row = [
-        payload.identifier,
-        payload.answers.q1,
-        Array.isArray(payload.answers.q2) ? payload.answers.q2.join('; ') : payload.answers.q2,
-        payload.answers.q3,
-        payload.answers.q4,
-        payload.answers.q5,
-        payload.answers.q6,
-        payload.answers.note,
-        payload.comment
-      ];
-      const csv = headers.map(csvEscape).join(',') + '\r\n' + row.map(csvEscape).join(',');
-      const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
-      const filename = 'sondage_' + payload.identifier + '.csv';
-      const link = document.createElement('a');
-      const url = URL.createObjectURL(blob);
-      link.setAttribute('href', url);
-      link.setAttribute('download', filename);
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-      URL.revokeObjectURL(url);
-    }
-
-    // Envoi via EmailJS (avec pièce jointe base64)
-    async function sendWithEmailJS(payload, xlsxBase64) {
-      // EmailJS templateParams : adaptez selon votre template
-      const filename = 'sondage_' + payload.identifier + '.xlsx';
-      const attachmentData = 'data:application/vnd.openxmlformats-officedocument.spreadsheetml.sheet;base64,' + xlsxBase64;
-
-      const templateParams = {
-        to_email: DEST_EMAIL,
-        subject: 'Réponse sondage - ID ' + payload.identifier,
-        message: 'Identifiant: ' + payload.identifier + '\n\nCommentaire:\n' + payload.comment,
-        // Pièce jointe : selon votre template EmailJS, vous pouvez utiliser une variable (ex: attachment) contenant la data URI
-        attachment: attachmentData,
-        attachment_filename: filename,
-        // Ajoutez d'autres variables si votre template les attend (Q1..Q6 etc.)
-        q1: payload.answers.q1 || '',
-        q2: Array.isArray(payload.answers.q2) ? payload.answers.q2.join('; ') : (payload.answers.q2 || ''),
-        q3: payload.answers.q3 || '',
-        q4: payload.answers.q4 || '',
-        q5: payload.answers.q5 || '',
-        q6: payload.answers.q6 || '',
-        note: payload.answers.note !== undefined ? String(payload.answers.note) : ''
-      };
-
-      // Envoi : emailjs.send(serviceID, templateID, templateParams)
-      return emailjs.send(EMAILJS_SERVICE_ID, EMAILJS_TEMPLATE_ID, templateParams);
-    }
-
-    document.getElementById('surveyForm').addEventListener('submit', async (e) => {
-      e.preventDefault();
-      const form = e.target;
-      const formData = new FormData(form);
-
-      const q2 = [];
-      form.querySelectorAll('input[name="q2"]:checked').forEach(cb => q2.push(cb.value));
-      const q3 = formData.get('q3') || '';
-
-      const payload = {
-        identifier: id,
-        answers: {
-          q1: formData.get('q1') || '',
-          q2: q2,
-          q3: q3,
-          q4: formData.get('q4') || '',
-          q5: formData.get('q5') || '',
-          q6: formData.get('q6') || '',
-          note: formData.get('note') !== null ? Number(formData.get('note')) : ''
-        },
-        comment: (formData.get('comment') || '').trim()
-      };
-
-      // Validation
-      if (payload.comment.length < 2 || payload.comment.length > 3000) {
-        alert('Le commentaire doit contenir entre 2 et 3000 caractères.');
-        return;
-      }
-      if (isNaN(payload.answers.note) || payload.answers.note < 0 || payload.answers.note > 20) {
-        alert('La note doit être un nombre entre 0 et 20.');
-        return;
-      }
-
-      // Générer XLSX base64
-      let xlsxBase64;
-      try {
-        xlsxBase64 = generateXlsxBase64(payload);
-      } catch (err) {
-        console.error('Erreur génération XLSX', err);
-        alert('Impossible de générer le fichier Excel dans votre navigateur. Un CSV sera téléchargé en remplacement.');
-        downloadCsv(payload);
-        // ouvrir mailto pour envoi manuel
-        const subject = encodeURIComponent('Réponse sondage - ID ' + payload.identifier);
-        const body = encodeURIComponent('Identifiant: ' + payload.identifier + '\n\nVeuillez joindre le fichier CSV téléchargé.');
-        window.location.href = 'mailto:' + encodeURIComponent(DEST_EMAIL) + '?subject=' + subject + '&body=' + body;
-        sessionStorage.removeItem('survey_identifier');
-        return;
-      }
-
-      // Tentative d'envoi via EmailJS
-      try {
-        await sendWithEmailJS(payload, xlsxBase64);
-        alert('Merci, vos réponses ont été envoyées par email.');
-        sessionStorage.removeItem('survey_identifier');
-        window.location.href = 'index.html';
-      } catch (err) {
-        console.error('EmailJS send error', err);
-        // Fallback : télécharger XLSX localement et ouvrir mailto pour joindre manuellement
-        try {
-          // convertir base64 en blob et déclencher téléchargement
-          const byteCharacters = atob(xlsxBase64);
-          const byteNumbers = new Array(byteCharacters.length);
-          for (let i = 0; i < byteCharacters.length; i++) {
-            byteNumbers[i] = byteCharacters.charCodeAt(i);
-          }
-          const byteArray = new Uint8Array(byteNumbers);
-          const blob = new Blob([byteArray], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
-          const filename = 'sondage_' + payload.identifier + '.xlsx';
-          const link = document.createElement('a');
-          const url = URL.createObjectURL(blob);
-          link.setAttribute('href', url);
-          link.setAttribute('download', filename);
-          document.body.appendChild(link);
-          link.click();
-          document.body.removeChild(link);
-          URL.revokeObjectURL(url);
-        } catch (ex) {
-          console.error('Fallback download failed', ex);
-        }
-
-        alert('L’envoi automatique a échoué. Un fichier Excel a été téléchargé ; veuillez l’attacher à un email et l’envoyer manuellement.');
-        const subject = encodeURIComponent('Réponse sondage - ID ' + payload.identifier);
-        const body = encodeURIComponent('Identifiant: ' + payload.identifier + '\n\nVeuillez joindre le fichier Excel téléchargé.');
-        window.location.href = 'mailto:' + encodeURIComponent(DEST_EMAIL) + '?subject=' + subject + '&body=' + body;
-        sessionStorage.removeItem('survey_identifier');
-      }
-    });
-  </script>
 </body>
 </html>
